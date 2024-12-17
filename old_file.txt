@@ -1,0 +1,3 @@
+I've created a Rust struct Object with a list of versions,
+ where each version has a hash value and a difference description.
+  Let me know if you'd like additional features or modifications!
