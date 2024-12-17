@@ -1,4 +1,5 @@
 use std::{fs, io};
+use std::fs::File;
 use std::io::BufRead;
 
 use sha1::{Sha1, Digest};
@@ -93,12 +94,25 @@ fn read_file_by_lines(filename: &str) -> Vec<String>{
 }
 
 impl Object {
-    pub fn new(file_main: fs::File) -> Object {
-        Object {
-            file_main,
-            versions: None,
-        }
+
+
+    pub fn save(file: &File) {
+       create_folder_if_not_exists("vsc/objects").expect("TODO: panic message");
+
+
     }
 
+
+}
+
+pub fn create_folder_if_not_exists(folder_name: &str) -> Result<(), std::io::Error> {
+    if !fs::metadata(folder_name).is_ok() {
+        fs::create_dir(folder_name)?;
+        println!("Folder '{}' created successfully.", folder_name);
+    } else {
+        println!("Folder '{}' already exists.", folder_name);
+    }
+
+    Ok(())
 }
 

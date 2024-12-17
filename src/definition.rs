@@ -2,6 +2,9 @@
     use std::fs;
 
 
+
+
+
     pub struct Line {
         pub line_number: usize,
         pub content: String,
@@ -18,6 +21,7 @@
 
 
     pub struct Object {
+        pub path: String,
         pub file_main: fs::File,  // Main file content
         pub versions: Option<Vec<Version<String>>>,
     }
