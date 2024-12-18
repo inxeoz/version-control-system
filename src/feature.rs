@@ -4,7 +4,7 @@ use std::io::BufRead;
 
 use sha1::{Sha1, Digest};
 use crate::definition;
-use crate::definition::{Object, VCS};
+use crate::definition::{ VCS};
 use std::io::prelude::*;
 
 pub  fn create_blob_file(filename: &str) -> String {
@@ -143,13 +143,13 @@ impl VCS {
         create_folder_if_not_exists("vsc/objects");
         create_folder_if_not_exists("vcs/config");
 
-        self.current_path =
+       // self.current_path =
 
 
     }
-
-    pub fn add(filename: &str) {
-        let filename = create_blob_file(filename);
-    }
+    //
+    // pub fn add(filename: &str) {
+    //     let filename = create_blob_file(filename);
+    // }
 }
 
