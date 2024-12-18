@@ -1,8 +1,26 @@
 
     use std::fs;
 
+    pub struct VCS {
+        pub current_path : String,
+        pub repo_root: repo_node,
+    }
+
+    pub struct branch {
+        pub name: String,
+        pub hash_value: String,
+        pub children: Option<Vec<repo_node> >,
+    }
 
 
+    pub struct repo_node {
+        pub file_or_folder_name: String,
+        pub file_or_folder_path: String,
+        pub current_hash_value: String,
+        pub is_folder: bool,
+        pub parent_hash_value: String,
+        pub children: Option<Vec<repo_node> >,
+    }
 
 
     pub struct Line {
