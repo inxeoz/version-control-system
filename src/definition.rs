@@ -3,23 +3,25 @@
 
     pub struct VCS {
         pub current_path : String,
-        pub repo_root: repo_node,
+        pub repo_root: Option<RepoNode>,
+        pub ignoreby: Option<String>,
+        
     }
 
-    pub struct branch {
+    pub struct Branch {
         pub name: String,
         pub hash_value: String,
-        pub children: Option<Vec<repo_node> >,
+        pub children: Option<Vec<RepoNode> >,
     }
 
 
-    pub struct repo_node {
+    pub struct RepoNode {
         pub file_or_folder_name: String,
         pub file_or_folder_path: String,
         pub current_hash_value: String,
         pub is_folder: bool,
         pub parent_hash_value: String,
-        pub children: Option<Vec<repo_node> >,
+        pub children: Option<Vec<RepoNode> >,
     }
 
 

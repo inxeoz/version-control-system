@@ -40,7 +40,7 @@ While this version control system could initially work locally, it could be expa
 
 Implement branching, so users can create separate lines of development and merge them later.
 
-    Branch Objects: Create branch objects that can point to specific commits.
+    Branch Objects: Create Branch objects that can point to specific commits.
     Merging: Implement basic merging algorithms to combine changes from different branches.
 
 7. Undoing Changes (Reverting and Resetting)
@@ -60,5 +60,5 @@ Implement a CLI tool for users to interact with the version control system. This
     log - Show commit history.
     push - Push changes to a remote.
     pull - Pull changes from a remote.
-    branch - Create, list, and manage branches.
+    Branch - Create, list, and manage branches.
     merge - Merge branches.
