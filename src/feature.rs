@@ -3,14 +3,13 @@ use std::io::BufRead;
 use std::{env, fs, io};
 
 use crate::definition;
-use crate::definition::VCS;
+use crate::definition::{RepoNode, VCS};
 use sha1::{Digest, Sha1};
 use std::io::prelude::*;
 use std::path::Path;
 
 impl VCS {
     pub fn init(&mut self) {
-
         Self::create_folder_if_not_exists("vcs");
         Self::create_folder_if_not_exists("vcs/objects");
         Self::create_folder_if_not_exists("vcs/config");
@@ -32,24 +31,23 @@ impl VCS {
     }
 
     pub fn is_folder_or_file_ignored(&self, entity_name: &str) -> bool {
-
         match &self.ignoreby {
             None => {
                 return false;
             }
             Some(ignore_file_name) => {
-
                 if let Ok(file) = File::open(ignore_file_name) {
                     let reader = io::BufReader::new(file);
                     for line in reader.lines() {
                         if let Ok(line) = line {
-                            if line.trim() == format!("/{}", entity_name) || line.trim() == entity_name {
+                            if line.trim() == format!("/{}", entity_name)
+                                || line.trim() == entity_name
+                            {
                                 return true;
                             }
                         }
                     }
                 }
-
             }
         }
 
@@ -57,28 +55,26 @@ impl VCS {
     }
 
     pub fn print_folder_contents(&self, folder_path: &str) {
-        println!("Parent Folder: {}", folder_path);
-        let parent_folder = Path::new(folder_path)
-            .file_name()
-            .and_then(|f| f.to_str())
-            .unwrap_or(".");
-        println!("Folder: {}", parent_folder);
-
         if let Ok(entries) = fs::read_dir(folder_path) {
             for entry in entries {
                 if let Ok(entry) = entry {
                     let path = entry.path();
+
                     if path.is_dir() {
+                        println!("on this path: {}", path.to_str().unwrap());
                         let folder_name = path
                             .file_name()
                             .expect("Failed to retrieve folder name")
                             .to_str()
                             .unwrap();
 
+                        println!("folder name: {}", folder_name);
+
                         if !Self::is_folder_or_file_ignored(&self, folder_name) {
-                            println!("Folder: {}", folder_name);
-                            Self::print_folder_contents(&self,path.to_str().unwrap());
+                            Self::print_folder_contents(&self, path.to_str().unwrap());
                         }
+
+                        println!("end of  this path: {}", path.to_str().unwrap());
                     } else {
                         let file_name = path
                             .file_name()
@@ -221,6 +217,67 @@ impl VCS {
         lines
     }
 
+    // pub fn add_nodes(&self, parent_node: &mut RepoNode, folder_path: &str) {
+    //     if let Ok(entries) = fs::read_dir(folder_path) {
+    //         for entry in entries.flatten() {
+    //             let path = entry.path();
+    //
+    //             if path.is_dir() {
+    //                 let folder_name = path
+    //                     .file_name()
+    //                     .expect("Failed to retrieve folder name")
+    //                     .to_str()
+    //                     .unwrap();
+    //
+    //                 println!("on this path: {}", path.to_str().unwrap());
+    //                 println!("folder name: {}", folder_name);
+    //
+    //                 let mut node = RepoNode {
+    //                     file_or_folder_name: folder_name.to_string(),
+    //                     file_or_folder_path: None,
+    //                     current_hash_value: None,
+    //                     is_folder: true,
+    //                     parent_hash_value: None,
+    //                     children: None,
+    //                 };
+    //
+    //                 parent_node
+    //                     .children
+    //                     .get_or_insert_with(Vec::new)
+    //                     .push(node);
+    //
+    //                 if !Self::is_folder_or_file_ignored(&self, folder_name) {
+    //                     Self::add_nodes(&self, node, path.to_str().unwrap());
+    //                 }
+    //
+    //                 println!("end of this path: {}", path.to_str().unwrap());
+    //             } else {
+    //                 let file_name = path
+    //                     .file_name()
+    //                     .expect("Failed to retrieve file name")
+    //                     .to_str()
+    //                     .expect("Failed to retrieve file name");
+    //
+    //                 if !Self::is_folder_or_file_ignored(self, file_name) {
+    //                     println!("File: {}", file_name);
+    //
+    //                     let node = RepoNode {
+    //                         file_or_folder_name: file_name.to_string(),
+    //                         file_or_folder_path: None,
+    //                         current_hash_value: None,
+    //                         is_folder: false,
+    //                         parent_hash_value: None,
+    //                         children: None,
+    //                     };
+    //
+    //                     parent_node
+    //                         .children
+    //                         .get_or_insert_with(Vec::new)
+    //                         .push(node);
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
 }
-

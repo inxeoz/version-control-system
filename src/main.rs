@@ -1,9 +1,8 @@
-
-use std::env;
 use crate::definition::{RepoNode, VCS};
+use std::env;
 
-mod feature;
 mod definition;
+mod feature;
 
 use argh::FromArgs;
 
@@ -17,7 +16,7 @@ struct TopLevel {
 #[derive(FromArgs)]
 #[argh(subcommand)]
 enum Command {
-    ignoreby(ignoreby)
+    ignoreby(ignoreby),
 }
 
 #[derive(FromArgs)]
@@ -28,33 +27,32 @@ struct ignoreby {
     file_name: String,
 }
 
-
 fn main() {
     let args: TopLevel = argh::from_env();
     match args.command {
         Command::ignoreby(ignore) => println!("Uploading file: {}", ignore.file_name),
-
     }
+
+    let path = VCS::get_current_path();
+    let path_folder_name = path.split("/").last().unwrap_or("").trim().to_string();
+
+    let root_node = RepoNode {
+        file_or_folder_name: path,
+        file_or_folder_path: Some ( path_folder_name ),
+        current_hash_value: None,
+        is_folder: true,
+        parent_hash_value: None,
+        children: None,
+    };
 
     let vcs = VCS {
         current_path: VCS::get_current_path(),
-        repo_root: None,
+        repo_root: Some(root_node),
         ignoreby: Some("vcs.ignore".to_string()),
     };
 
     vcs.print_folder_contents(vcs.current_path.as_str())
-
-
-
-
-
-
-
 }
-
-
-
-
 
 // fn main() {
 //     let oldfile = "old_file.txt";
@@ -74,10 +72,3 @@ fn main() {
 //
 //
 // }
-
-
-
-
-
-
-

@@ -17,10 +17,10 @@
 
     pub struct RepoNode {
         pub file_or_folder_name: String,
-        pub file_or_folder_path: String,
-        pub current_hash_value: String,
+        pub file_or_folder_path: Option<String>,
+        pub current_hash_value: Option<String>,
         pub is_folder: bool,
-        pub parent_hash_value: String,
+        pub parent_hash_value: Option<String>,
         pub children: Option<Vec<RepoNode> >,
     }
 
