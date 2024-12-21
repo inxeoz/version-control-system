@@ -6,7 +6,7 @@ mod parse;
 fn main() {
    // traverse_json();
     feature::main();
-    init();
+   // init();
 
 }
 

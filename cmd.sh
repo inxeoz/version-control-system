@@ -1,4 +1,4 @@
-rm -rf vcs
+rm -rf version_control_system
 cargo build
 cargo run
 #cargo run -- arg1 arg2

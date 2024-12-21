@@ -124,7 +124,7 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> 
     let mut folder_structure = HashMap::new();
 
     // Initialize the ignore list
-    let mut ignore_list =HashSet::<String>::new();
+    let mut ignore_list = HashSet::<String>::new();
 
     // Check if `.version_control_system.ignore` exists in the current folder
     let ignore_file_path = Path::new(folder_path).join(".vcs.ignore");
@@ -199,7 +199,7 @@ pub fn print_hierarchy(json_value: &Value, indent: usize) {
     }
 }
 
-pub fn get_current_dir_entities(current_path: PathBuf) -> HashSet<String>{
+pub fn get_current_dir_entities(current_path: PathBuf) -> HashSet<String> {
     let mut entity_list = HashSet::<String>::new();
     println!("####################### {:?}", current_path.display());
     if let Ok(entries) = fs::read_dir(current_path) {
@@ -255,61 +255,86 @@ pub fn traverse_json(json: &Value, current_path: PathBuf) {
         }
     }
 }
-
-
-pub fn traverse_json3(json: &Value, current_path: PathBuf) {
+pub fn traverse_and_update(serde_json: Option<&Value>, current_path: PathBuf) -> Map<String, Value> {
+    let mut folder_structure = Map::new();
     let mut ignore_list = HashSet::<String>::new();
-    let mut entity_list = get_current_dir_entities(current_path.clone());
+    let mut whole_list = get_current_dir_entities(current_path.clone());
+    let mut actual_list = HashSet::<String>::new();
 
-    // Check if `.version_control_system.ignore` exists in the current folder and load the ignore list
+    // Check if `.vcs.ignore` exists in the current folder and load the ignore list
     let ignore_file_path = current_path.join(".vcs.ignore");
+
     if ignore_file_path.exists() {
         ignore_list = read_ignore_file(ignore_file_path.to_str().unwrap());
+        actual_list = whole_list.difference(&ignore_list).cloned().collect();
 
-        println!("{:?}", entity_list);
-        println!("{:?}", ignore_list);
+        println!("whole list {:?}", whole_list);
+        println!("ignore list {:?}", ignore_list);
+        println!("actual list {:?}", actual_list);
         println!("\n\n\n");
     }
 
-    match json {
-        Value::Object(map) => {
-            // Traverse the object (folder) content
-            for (key, value) in map {
-                println!("key: {}", key);
-                if !ignore_list.contains(&key.to_string()) {
+    // Handle JSON structure
+    if let Some(value) = serde_json {
+        match value {
+            Value::Object(map) => {
+                // Get the previous list of keys (files/folders) in the current JSON structure
+                let mut previous_list: HashSet<String> = map.keys().map(|x| x.to_string()).collect();
+                println!("previous list {:?}", previous_list);
 
-                    let mut new_path = current_path.clone();
-                    new_path.push(key);
-                    println!("{} ------>", new_path.display());
+                // Find new files/folders to add that are not in the current JSON structure
+                let mut new_list_to_add: HashSet<String> = actual_list.difference(&previous_list).cloned().collect();
+                println!("new list to add {:?}", new_list_to_add);
 
-                    if entity_list.contains(&key.to_string()) {
-                        println!("key: {}", key);
+                if new_list_to_add.is_empty() {
+                    println!("Nothing to add at path {}", current_path.display());
+                } else {
+                    // Add new files/folders
+                    for entity in new_list_to_add {
+                        let mut new_path = current_path.clone();
+                        new_path.push(&entity);
+
+                        // If the entity is a file, add it to the current JSON structure
+                        if new_path.is_file() {
+                            // You would typically hash the file content here and add it to the JSON structure
+                            let file_hash = create_blob_file_and_save(new_path.display().to_string());
+                            folder_structure.insert(entity, Value::String(file_hash));
+                        } else if new_path.is_dir() {
+                            // If the entity is a folder, recursively traverse and update the folder structure
+                            let nested_folder_structure = traverse_and_update(map.get(&entity), new_path);
+                            folder_structure.insert(entity, Value::Object(nested_folder_structure));
+                        }
                     }
                 }
             }
-        }
-        Value::Array(arr) => {
-            for (index, value) in arr.iter().enumerate() {
-                println!("value : {}", value);
-                let mut new_path = current_path.clone();
-                new_path.push(format!("[{}]", index)); // Append array index to the path
-
-                traverse_json3(value, new_path); // Recurse with the updated path
+            Value::Array(arr) => {
+                // Handle arrays if relevant for your case
+                println!("Handling array at path {}", current_path.display());
+            }
+            _ => {
+                // Handle other cases (e.g., files that don't fit into the Object or Array categories)
+                if !is_ignored(&current_path, &ignore_list, false) {
+                    // Handle files that are not ignored
+                    println!("{}: {} ------>", current_path.display(), value);
+                }
             }
         }
-        _ => {
-            if !is_ignored(&current_path, &ignore_list, false) {
-                println!("{}: {}", current_path.display(), json); // Print file path and content
-            }
-        }
+    } else {
+        // If the JSON is None (empty), do something if necessary
+        println!("No JSON data to process at {}", current_path.display());
     }
-}
 
+    folder_structure
+}
 pub fn main() {
     let json_data = fs::read_to_string("version_control_system/config/struct.json")
         .expect("Failed to read JSON");
     let parsed_json: Value = serde_json::from_str(&*json_data).expect("Failed to parse JSON");
     println!("\n\n");
 
-    traverse_json3(&parsed_json, get_current_path().join("test_fold"));
+    let new_json = traverse_and_update(Option::from(&parsed_json), get_current_path().join("test_fold"));
+
+    let new_serde_json = serde_json::to_string_pretty(&new_json).expect("Failed to serialize JSON");
+
+    fs::write("version_control_system/config/struct2.json", new_serde_json).expect("Failed to write JSON to file");
 }
