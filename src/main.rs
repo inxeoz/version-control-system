@@ -15,10 +15,10 @@ fn init() {
     create_file_if_not_exists("config.txt", "vcs/config");
     create_file_if_not_exists("struct.json", "vcs/config");
     save_hierarchy_to_file("test_fold","vcs/config/struct.json", );
-
-    let json_file_path = "vcs/config/struct.json";
-    let hierarchy = read_hierarchy_from_file(json_file_path);
-    println!("Folder Hierarchy:");
- print_hierarchy(&hierarchy, 0);
+ //
+ //    let json_file_path = "vcs/config/struct.json";
+ //    let hierarchy = read_hierarchy_from_file(json_file_path);
+ //    println!("Folder Hierarchy:");
+ // print_hierarchy(&hierarchy, 0);
 
 }

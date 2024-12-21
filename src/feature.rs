@@ -4,8 +4,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, prelude::*};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use serde_json::{json, Value};
+use std::io::{Read, Write};
+
 
 pub fn write_to_file(file_path: &str, content: &str) {
     let path = Path::new(file_path);
@@ -85,33 +87,89 @@ pub fn create_blob_file_and_save(filename_from_root: String) -> String{
     blob_file
         .write_all(&content)
         .expect("Cannot write content to blob file");
-
-    println!("Blob file created successfully: {}", blob_filename);
-
     hashstring
 }
 
 
-/// Reads a JSON file and deserializes it into a `Value`
-///
+/// Reads a `.ignore` file and returns the list of file/folder names to be ignored.
+fn read_ignore_file(ignore_file_path: &str) -> Vec<String> {
+    let mut ignore_list = Vec::new();
+    if let Ok(contents) = fs::read_to_string(ignore_file_path) {
+        for line in contents.lines() {
+            if !line.trim().is_empty() {
+                ignore_list.push(line.trim().to_string());
+            }
+        }
+    }
+    ignore_list
+}
+
+// Checks if the given path (file or folder) should be ignored based on `.ignore`.
+fn is_ignored(path: &Path) -> bool {
+    let ignore_file_path = path.join("vcs.ignore");
+    if ignore_file_path.exists() {
+        let ignore_list = read_ignore_file(ignore_file_path.to_str().unwrap());
+        let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+        return ignore_list.contains(&file_name);
+    }
+    false
+}
+
 pub fn create_hierarchy_of_folders(folder_path: &str) -> Value {
     let mut folder_structure = HashMap::new();
+    let mut queue = VecDeque::new();
 
+    // Start with the subdirectories of the root folder and process them
     if let Ok(entries) = fs::read_dir(folder_path) {
+        // First pass: collect subdirectories and files
         for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if path.is_dir() {
-                let folder_name = path.file_name().unwrap().to_str().unwrap().to_string();
-                // Recursively process subfolder
-                folder_structure.insert(
-                    folder_name,
-                    create_hierarchy_of_folders(path.to_str().unwrap()),
-                );
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                queue.push_back(entry_path); // Collect subdirectory paths
             } else {
-                let hashstring = create_blob_file_and_save(path.display().to_string());
-                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-                // Add file with hash to the current folder
+                // Process files and add their hash directly
+                let file_name = entry_path.file_name().unwrap().to_str().unwrap().to_string();
+                let hashstring = create_blob_file_and_save(entry_path.display().to_string());
                 folder_structure.insert(file_name, Value::String(hashstring));
+            }
+        }
+    }
+
+    // Second pass: process all subdirectories
+    while let Some(path) = queue.pop_front() {
+        // Skip ignored files and folders (if applicable)
+        println!("Processing {}", path.display());
+        if is_ignored(&path) {
+            continue;
+        }
+
+        if let Ok(entries) = fs::read_dir(&path) {
+            let mut current_folder = HashMap::new();
+            let mut subdirs = Vec::new();
+
+            for entry in entries.filter_map(Result::ok) {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let folder_name = entry_path.file_name().unwrap().to_str().unwrap().to_string();
+                    subdirs.push(entry_path); // Collect subdirectory paths
+                } else {
+                    // Process files and add their hash directly
+                    let file_name = entry_path.file_name().unwrap().to_str().unwrap().to_string();
+                    let hashstring = create_blob_file_and_save(entry_path.display().to_string());
+                    current_folder.insert(file_name, Value::String(hashstring));
+                }
+            }
+
+            // Process all subdirectories after files
+            for subdir in subdirs {
+                let folder_name = subdir.file_name().unwrap().to_str().unwrap().to_string();
+                current_folder.insert(folder_name, Value::Object(serde_json::Map::new()));
+                queue.push_back(subdir); // Enqueue subdirectory for further processing
+            }
+
+            // Only add non-empty folders to the root structure
+            if !current_folder.is_empty() {
+                folder_structure.insert(path.file_name().unwrap().to_str().unwrap().to_string(), json!(current_folder));
             }
         }
     }
@@ -119,12 +177,14 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> Value {
     json!(folder_structure)
 }
 
-/// Saves the folder hierarchy as a JSON file
+
 pub fn save_hierarchy_to_file(folder_path: &str, output_file: &str) {
     let hierarchy = create_hierarchy_of_folders(folder_path);
     let json_string = serde_json::to_string_pretty(&hierarchy).expect("Failed to serialize JSON");
     fs::write(output_file, json_string).expect("Failed to write JSON to file");
 }
+
+
 
 pub fn read_hierarchy_from_file(file_path: &str) -> Value {
     let file_content = fs::read_to_string(file_path).expect("Failed to read JSON file");
