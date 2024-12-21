@@ -5,6 +5,7 @@ use std::io::{self, prelude::*};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use std::collections::{HashMap, VecDeque};
+use std::fmt::format;
 use serde_json::{json, Map, Value};
 use std::io::{Read, Write};
 
@@ -97,6 +98,7 @@ fn read_ignore_file(ignore_file_path: &str) -> Vec<String> {
     if let Ok(contents) = fs::read_to_string(ignore_file_path) {
         for line in contents.lines() {
             if !line.trim().is_empty() {
+                println!("Ignoring file: {}", line);
                 ignore_list.push(line.trim().to_string());
             }
         }
@@ -105,8 +107,14 @@ fn read_ignore_file(ignore_file_path: &str) -> Vec<String> {
 }
 
 /// Checks if the given path (file or folder) should be ignored based on `.vcs.ignore`.
-fn is_ignored(path: &Path, ignore_list: &Vec<String>) -> bool {
-    let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+fn is_ignored(path: &Path, ignore_list: &Vec<String>, is_folder: bool) -> bool {
+    let file_name= path.file_name().unwrap().to_str().unwrap().to_string();
+    if is_folder {
+
+        return  ignore_list.contains(&format!("/{}", file_name).to_string())
+
+    }
+
     ignore_list.contains(&file_name)
 }
 /// Recursively create the folder hierarchy and add file hashes, considering ignored files and directories.
@@ -129,7 +137,7 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> 
             let entry_path = entry.path();
             if entry_path.is_dir() {
                 // If the directory is not in the ignore list, enqueue it for processing
-                if !is_ignored(&entry_path, &ignore_list) {
+                if !is_ignored(&entry_path, &ignore_list, true) {
                     let folder_name = entry_path.file_name().unwrap().to_str().unwrap().to_string();
                     let subfolder_structure = create_hierarchy_of_folders(entry_path.to_str().unwrap());
 
@@ -140,7 +148,7 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> 
             } else {
                 // Process files and add their hash directly, if not ignored
                 let file_name = entry_path.file_name().unwrap().to_str().unwrap().to_string();
-                if !is_ignored(&entry_path, &ignore_list) {
+                if !is_ignored(&entry_path, &ignore_list, false) {
                     let hashstring = create_blob_file_and_save(entry_path.display().to_string());
                     folder_structure.insert(file_name, Value::String(hashstring));
                 }
