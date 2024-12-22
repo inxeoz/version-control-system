@@ -49,6 +49,27 @@ pub fn create_file_if_not_exists(file_name: &str, relative_path: &str) {
     }
 }
 
+pub fn delete_folder_if_exists(folder_path_from_root: &str) {
+    let folder_path = get_current_path().join(folder_path_from_root);
+    if folder_path.exists() {
+        fs::remove_dir_all(&folder_path).expect("Failed to delete folder.");
+        println!("Folder '{}' deleted successfully.", folder_path.display());
+    } else {
+        println!("Folder '{}' does not exist.", folder_path.display());
+    }
+}
+
+pub fn delete_file_if_exists(file_name: &str, relative_path: &str) {
+    let file_path = get_current_path().join(relative_path).join(file_name);
+    if file_path.exists() {
+        fs::remove_file(&file_path).expect("Failed to delete file.");
+        println!("File '{}' deleted successfully.", file_path.display());
+    } else {
+        println!("File '{}' does not exist.", file_path.display());
+    }
+}
+
+
 pub fn read_file_and_get_hash(file_path_from_root: &str) -> Result<(Vec<u8>, String), String> {
     // Open and read the file content as raw bytes
     let mut file =
@@ -72,22 +93,5 @@ pub fn read_file_and_get_hash(file_path_from_root: &str) -> Result<(Vec<u8>, Str
 }
 
 // Create blob file and save raw bytes
-pub fn create_blob_file_and_save(filename_from_root: String) -> String {
-    let (content, hashstring) =
-        read_file_and_get_hash(&filename_from_root).expect("Failed to read file.");
-    let hashname = &hashstring[0..6];
 
-    let blob_filename = format!(
-        "version_control_system/objects/{}/{}.blob",
-        hashname, hashstring
-    );
-    let foldername = format!("version_control_system/objects/{}", hashname);
-    create_folder_if_not_exists(&foldername); // Assuming `create_folder_if_not_exists` creates the folder
-
-    let mut blob_file = File::create(&blob_filename).expect("Cannot create blob file");
-    blob_file
-        .write_all(&content)
-        .expect("Cannot write content to blob file");
-    hashstring
-}
 

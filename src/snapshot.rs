@@ -1,8 +1,12 @@
-use crate::read_write::create_blob_file_and_save;
-use serde_json::{Map, Value};
+use crate::read_write::{ create_folder_if_not_exists, read_file_and_get_hash};
+use serde_json;
 use std::collections::{HashMap, HashSet};
+use std::fmt::format;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+
 
 pub fn read_ignore_file(ignore_file_path: &str) -> HashSet<String> {
     let mut ignore_list = HashSet::<String>::new();
@@ -26,11 +30,69 @@ pub fn is_ignored(path: &Path, ignore_list: &HashSet<String>, is_folder: bool) -
     let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
     ignore_list.contains(&file_name)
 }
+
+pub fn create_blob_file_and_save(filename_from_root: String) -> String {
+    let (content, hashstring) =
+        read_file_and_get_hash(&filename_from_root).expect("Failed to read file.");
+
+    let blob_filename = format!(
+        "version_control_system/objects/{}/{}.blob",
+        hashstring, hashstring
+    );
+    let foldername = format!("version_control_system/objects/{}", hashstring);
+    create_folder_if_not_exists(&foldername); // Assuming `create_folder_if_not_exists` creates the folder
+
+    let mut blob_file = File::create(&blob_filename).expect("Cannot create blob file");
+    blob_file
+        .write_all(&content)
+        .expect("Cannot write content to blob file");
+    hashstring
+}
+
+pub fn compare_files(original_file: &str, new_file: &str) -> serde_json::Value {
+    // Read the contents of both files
+    let original_content = fs::read(original_file).expect("Failed to read original file");
+    let new_content = fs::read(new_file).expect("Failed to read new file");
+
+    // Split the content into lines (or use bytes for binary data)
+    let original_lines: Vec<_> = original_content.split(|&b| b == b'\n').collect();
+    let new_lines: Vec<_> = new_content.split(|&b| b == b'\n').collect();
+
+    let mut commands = vec![];
+
+    let mut original_index = 0;
+    let mut new_index = 0;
+
+    while original_index < original_lines.len() && new_index < new_lines.len() {
+        if original_lines[original_index] == new_lines[new_index] {
+            // If the lines are identical, use "copy"
+            commands.push(serde_json::json!({ "command": "copy", "line": String::from_utf8_lossy(original_lines[original_index]) }));
+            original_index += 1;
+            new_index += 1;
+        } else {
+            // If the lines differ, use "add" for the new content
+            commands.push(serde_json::json!({ "command": "add", "line": String::from_utf8_lossy(new_lines[new_index]) }));
+            new_index += 1;
+        }
+    }
+
+    // Handle any remaining lines in the new file (add commands)
+    while new_index < new_lines.len() {
+        commands.push(serde_json::json!({ "command": "add", "line": String::from_utf8_lossy(new_lines[new_index]) }));
+        new_index += 1;
+    }
+
+    // Handle any remaining lines in the original file (not needed, as they're "ignored")
+
+    // Return the JSON map
+    serde_json::json!(commands)
+}
+
 pub fn traverse_and_update(
-    serde_json: Option<&Value>,
+    serde_json: Option<&serde_json::Value>,
     current_path: PathBuf,
-) -> Map<String, Value> {
-    let mut folder_structure = Map::new();
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut folder_structure = serde_json::Map::new();
     let mut ignore_list = HashSet::<String>::new();
     let mut whole_list = get_current_dir_entities(current_path.clone());
     let mut actual_list = HashSet::<String>::new();
@@ -66,20 +128,23 @@ pub fn traverse_and_update(
                 // You would typically hash the file content here and add it to the JSON structure
                 let file_hash = create_blob_file_and_save(new_path.display().to_string());
                 if previous_list_key.contains(&entity) && previous_list_map.get(&entity).unwrap().as_str().unwrap() != file_hash {
+                    let previous_file_hash = previous_list_map.get(&entity).unwrap().as_str().unwrap();
                     //TODO when previous_file_hash has chnaged
-                    folder_structure.insert(entity, Value::String(file_hash));
+                  //  let diff = compare_files(&format!("test_fold/{}/{}", previous_file_hash, previous_file_hash), &format!("test_fold/{}/{}", file_hash, file_hash));
+
+                    folder_structure.insert(entity, serde_json::Value::String(file_hash));
                 }else {
-                    folder_structure.insert(entity, Value::String(file_hash));
+                    folder_structure.insert(entity, serde_json::Value::String(file_hash));
                 }
 
             } else if new_path.is_dir() {
 
                 if previous_list_key.contains(&entity) {
                     let nested_folder_structure = traverse_and_update(previous_list_map.get(&entity), new_path.clone());
-                    folder_structure.insert(entity, Value::Object(nested_folder_structure));
+                    folder_structure.insert(entity, serde_json::Value::Object(nested_folder_structure));
                 }else {
                     let nested_folder_structure = traverse( new_path.clone());
-                    folder_structure.insert(entity, Value::Object(nested_folder_structure));
+                    folder_structure.insert(entity,serde_json:: Value::Object(nested_folder_structure));
 
                 }
 
@@ -89,9 +154,9 @@ pub fn traverse_and_update(
     folder_structure
 }
 
-pub fn traverse(current_path: PathBuf) -> Map<String, Value> {
+pub fn traverse(current_path: PathBuf) -> serde_json::Map<String, serde_json::Value> {
 
-    let mut folder_structure = Map::new();
+    let mut folder_structure = serde_json::Map::new();
     let mut ignore_list = HashSet::<String>::new();
     let mut whole_list = get_current_dir_entities(current_path.clone());
     let mut actual_list = HashSet::<String>::new();
@@ -120,18 +185,18 @@ pub fn traverse(current_path: PathBuf) -> Map<String, Value> {
             if new_path.is_file() {
                 // You would typically hash the file content here and add it to the JSON structure
                 let file_hash = create_blob_file_and_save(new_path.display().to_string());
-                folder_structure.insert(entity, Value::String(file_hash));
+                folder_structure.insert(entity, serde_json::Value::String(file_hash));
             } else if new_path.is_dir() {
                 // If the entity is a folder, recursively traverse and update the folder structure
                 let nested_folder_structure = traverse(new_path);
-                folder_structure.insert(entity, Value::Object(nested_folder_structure));
+                folder_structure.insert(entity, serde_json::Value::Object(nested_folder_structure));
             }
         }
     }
     folder_structure
 }
 
-pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> {
+pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, serde_json::Value> {
     let mut folder_structure = HashMap::new();
 
     // Initialize the ignore list
@@ -161,8 +226,8 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> 
                         create_hierarchy_of_folders(entry_path.to_str().unwrap());
 
                     // Convert HashMap to serde_json::Map
-                    let map: Map<String, Value> = subfolder_structure.into_iter().collect();
-                    folder_structure.insert(folder_name, Value::Object(map)); // Insert into folder structure
+                    let map: serde_json::Map<String, serde_json::Value> = subfolder_structure.into_iter().collect();
+                    folder_structure.insert(folder_name, serde_json::Value::Object(map)); // Insert into folder structure
                 }
             } else {
                 // Process files and add their hash directly, if not ignored
@@ -174,7 +239,7 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> 
                     .to_string();
                 if !is_ignored(&entry_path, &ignore_list, false) {
                     let hashstring = create_blob_file_and_save(entry_path.display().to_string());
-                    folder_structure.insert(file_name, Value::String(hashstring));
+                    folder_structure.insert(file_name, serde_json::Value::String(hashstring));
                 }
             }
         }
@@ -183,7 +248,7 @@ pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, Value> 
     return folder_structure;
 }
 
-pub fn read_hierarchy_from_file(file_path: &str) -> Value {
+pub fn read_hierarchy_from_file(file_path: &str) -> serde_json::Value {
     let file_content = fs::read_to_string(file_path).expect("Failed to read JSON file");
     serde_json::from_str(&file_content).expect("Failed to parse JSON file")
 }
@@ -193,7 +258,7 @@ pub fn save_hierarchy_to_file(folder_path: &str, output_file: &str) {
     fs::write(output_file, json_string).expect("Failed to write JSON to file");
 }
 /// Recursively prints the JSON hierarchy in a readable format
-pub fn print_hierarchy(json_value: &Value, indent: usize) {
+pub fn print_hierarchy(json_value: &serde_json::Value, indent: usize) {
     let indent_str = "  ".repeat(indent);
 
     if let Some(map) = json_value.as_object() {

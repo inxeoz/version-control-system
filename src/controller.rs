@@ -1,7 +1,7 @@
 use std::fs;
 use serde_json::Value;
-use crate::read_write::{create_file_if_not_exists, create_folder_if_not_exists, get_current_path};
-use crate::snapshot::{save_hierarchy_to_file, traverse, traverse_and_update};
+use crate::read_write::{create_file_if_not_exists, create_folder_if_not_exists, get_current_path, read_file_and_get_hash};
+use crate::snapshot::{compare_files, save_hierarchy_to_file, traverse, traverse_and_update};
 
 pub fn init() {
     create_folder_if_not_exists("version_control_system");
@@ -35,4 +35,10 @@ pub fn create_hierarchy_from_dir_and_save() {
     fs::write("version_control_system/config/struct.json", new_serde_json).expect("Failed to write JSON to file");
 }
 
+
+pub fn compare() {
+
+    let result = compare_files("test_fold/f5.txt", "test_fold/f6.txt");
+    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+}
 
