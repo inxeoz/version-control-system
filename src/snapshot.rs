@@ -1,4 +1,4 @@
-use crate::read_write::{ create_folder_if_not_exists, read_file_and_get_hash};
+use crate::read_write::{create_file_if_not_exists, create_folder_if_not_exists, read_file_and_get_hash};
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fmt::format;
@@ -6,6 +6,8 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use crate::controller;
 
 
 pub fn read_ignore_file(ignore_file_path: &str) -> HashSet<String> {
@@ -26,20 +28,18 @@ pub fn read_ignore_file(ignore_file_path: &str) -> HashSet<String> {
     ignore_list
 }
 
-pub fn is_ignored(path: &Path, ignore_list: &HashSet<String>, is_folder: bool) -> bool {
+pub fn is_ignored(path: &Path, ignore_list: &HashSet<String> ) -> bool {
     let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
     ignore_list.contains(&file_name)
 }
 
-pub fn create_blob_file_and_save(filename_from_root: String) -> String {
+pub fn create_blob_file_and_save(filename_from_root: &str, details: &controller::ConfigDetails) -> String {
     let (content, hashstring) =
         read_file_and_get_hash(&filename_from_root).expect("Failed to read file.");
 
-    let blob_filename = format!(
-        "version_control_system/objects/{}/{}.blob",
-        hashstring, hashstring
-    );
-    let foldername = format!("version_control_system/objects/{}", hashstring);
+    let foldername = format!("{}/{}", details.version_control_system_objects_folder, hashstring);
+    let blob_filename = format!("{}/{}.blob", foldername, hashstring);
+
     create_folder_if_not_exists(&foldername); // Assuming `create_folder_if_not_exists` creates the folder
 
     let mut blob_file = File::create(&blob_filename).expect("Cannot create blob file");
@@ -91,6 +91,7 @@ pub fn compare_files(original_file: &str, new_file: &str) -> serde_json::Value {
 pub fn traverse_and_update(
     serde_json: Option<&serde_json::Value>,
     current_path: PathBuf,
+    details: &controller::ConfigDetails
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut folder_structure = serde_json::Map::new();
     let mut ignore_list = HashSet::<String>::new();
@@ -98,7 +99,7 @@ pub fn traverse_and_update(
     let mut actual_list = HashSet::<String>::new();
 
     // Check if `.vcs.ignore` exists in the current folder and load the ignore list
-    let ignore_file_path = current_path.join(".vcs.ignore");
+    let ignore_file_path = current_path.join(&details.ignore_file_name);
     println!("current path {:?}", current_path.display());
     ignore_list = read_ignore_file(ignore_file_path.to_str().unwrap());
     actual_list = whole_list.difference(&ignore_list).cloned().collect();
@@ -126,24 +127,29 @@ pub fn traverse_and_update(
             // If the entity is a file, add it to the current JSON structure
             if new_path.is_file() {
                 // You would typically hash the file content here and add it to the JSON structure
-                let file_hash = create_blob_file_and_save(new_path.display().to_string());
+                let file_hash = create_blob_file_and_save(&*new_path.display().to_string(), &details);
                 if previous_list_key.contains(&entity) && previous_list_map.get(&entity).unwrap().as_str().unwrap() != file_hash {
                     let previous_file_hash = previous_list_map.get(&entity).unwrap().as_str().unwrap();
                     //TODO when previous_file_hash has chnaged
-                  //  let diff = compare_files(&format!("test_fold/{}/{}", previous_file_hash, previous_file_hash), &format!("test_fold/{}/{}", file_hash, file_hash));
+                   // let diff = compare_files(&format!("{}/{}/{}", details.version_control_system_objects_folder,  previous_file_hash, previous_file_hash), new_path.to_str().unwrap());
+                   //
+                   //  create_file_if_not_exists("diff.txt", format!("{}/{}", details.version_control_system_objects_folder, file_hash).as_str() );
+                   //  fs::write( format!("{}/{}/diff.txt", file_hash).as_str(), diff.to_string()).expect("Unable to write file");
 
                     folder_structure.insert(entity, serde_json::Value::String(file_hash));
                 }else {
+
+                    create_file_if_not_exists("diff.txt", format!("{}/{}", details.version_control_system_objects_folder, file_hash).as_str() );
                     folder_structure.insert(entity, serde_json::Value::String(file_hash));
                 }
 
             } else if new_path.is_dir() {
 
                 if previous_list_key.contains(&entity) {
-                    let nested_folder_structure = traverse_and_update(previous_list_map.get(&entity), new_path.clone());
+                    let nested_folder_structure = traverse_and_update(previous_list_map.get(&entity), new_path.clone(),  details);
                     folder_structure.insert(entity, serde_json::Value::Object(nested_folder_structure));
                 }else {
-                    let nested_folder_structure = traverse( new_path.clone());
+                    let nested_folder_structure = traverse( new_path.clone(), details);
                     folder_structure.insert(entity,serde_json:: Value::Object(nested_folder_structure));
 
                 }
@@ -154,7 +160,7 @@ pub fn traverse_and_update(
     folder_structure
 }
 
-pub fn traverse(current_path: PathBuf) -> serde_json::Map<String, serde_json::Value> {
+pub fn traverse(current_path: PathBuf, details: &controller::ConfigDetails) -> serde_json::Map<String, serde_json::Value> {
 
     let mut folder_structure = serde_json::Map::new();
     let mut ignore_list = HashSet::<String>::new();
@@ -162,7 +168,7 @@ pub fn traverse(current_path: PathBuf) -> serde_json::Map<String, serde_json::Va
     let mut actual_list = HashSet::<String>::new();
 
     // Check if `.vcs.ignore` exists in the current folder and load the ignore list
-    let ignore_file_path = current_path.join(".vcs.ignore");
+    let ignore_file_path = current_path.join(&details.ignore_file_name);
 
     println!("traverse current path {:?}", current_path.display());
     ignore_list = read_ignore_file(ignore_file_path.to_str().unwrap());
@@ -184,11 +190,11 @@ pub fn traverse(current_path: PathBuf) -> serde_json::Map<String, serde_json::Va
             // If the entity is a file, add it to the current JSON structure
             if new_path.is_file() {
                 // You would typically hash the file content here and add it to the JSON structure
-                let file_hash = create_blob_file_and_save(new_path.display().to_string());
+                let file_hash = create_blob_file_and_save(&*new_path.display().to_string(), details);
                 folder_structure.insert(entity, serde_json::Value::String(file_hash));
             } else if new_path.is_dir() {
                 // If the entity is a folder, recursively traverse and update the folder structure
-                let nested_folder_structure = traverse(new_path);
+                let nested_folder_structure = traverse(new_path, details);
                 folder_structure.insert(entity, serde_json::Value::Object(nested_folder_structure));
             }
         }
@@ -196,66 +202,10 @@ pub fn traverse(current_path: PathBuf) -> serde_json::Map<String, serde_json::Va
     folder_structure
 }
 
-pub fn create_hierarchy_of_folders(folder_path: &str) -> HashMap<String, serde_json::Value> {
-    let mut folder_structure = HashMap::new();
-
-    // Initialize the ignore list
-    let mut ignore_list = HashSet::<String>::new();
-
-    // Check if `.version_control_system.ignore` exists in the current folder
-    let ignore_file_path = Path::new(folder_path).join(".vcs.ignore");
-    if ignore_file_path.exists() {
-        // Load ignore list if `.version_control_system.ignore` file is found
-        ignore_list = read_ignore_file(ignore_file_path.to_str().unwrap());
-    }
-
-    // First pass: collect subdirectories and files
-    if let Ok(entries) = fs::read_dir(folder_path) {
-        for entry in entries.filter_map(Result::ok) {
-            let entry_path = entry.path();
-            if entry_path.is_dir() {
-                // If the directory is not in the ignore list, enqueue it for processing
-                if !is_ignored(&entry_path, &ignore_list, true) {
-                    let folder_name = entry_path
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .to_string();
-                    let subfolder_structure =
-                        create_hierarchy_of_folders(entry_path.to_str().unwrap());
-
-                    // Convert HashMap to serde_json::Map
-                    let map: serde_json::Map<String, serde_json::Value> = subfolder_structure.into_iter().collect();
-                    folder_structure.insert(folder_name, serde_json::Value::Object(map)); // Insert into folder structure
-                }
-            } else {
-                // Process files and add their hash directly, if not ignored
-                let file_name = entry_path
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string();
-                if !is_ignored(&entry_path, &ignore_list, false) {
-                    let hashstring = create_blob_file_and_save(entry_path.display().to_string());
-                    folder_structure.insert(file_name, serde_json::Value::String(hashstring));
-                }
-            }
-        }
-    }
-
-    return folder_structure;
-}
 
 pub fn read_hierarchy_from_file(file_path: &str) -> serde_json::Value {
     let file_content = fs::read_to_string(file_path).expect("Failed to read JSON file");
     serde_json::from_str(&file_content).expect("Failed to parse JSON file")
-}
-pub fn save_hierarchy_to_file(folder_path: &str, output_file: &str) {
-    let hierarchy = create_hierarchy_of_folders(folder_path);
-    let json_string = serde_json::to_string_pretty(&hierarchy).expect("Failed to serialize JSON");
-    fs::write(output_file, json_string).expect("Failed to write JSON to file");
 }
 /// Recursively prints the JSON hierarchy in a readable format
 pub fn print_hierarchy(json_value: &serde_json::Value, indent: usize) {
