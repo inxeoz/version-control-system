@@ -139,7 +139,7 @@ pub fn traverse_and_update(
                     folder_structure.insert(entity, serde_json::Value::String(file_hash));
                 }else {
 
-                    create_file_if_not_exists("diff.txt", format!("{}/{}", details.version_control_system_objects_folder, file_hash).as_str() );
+                    //create_file_if_not_exists("diff.txt", format!("{}/{}", details.version_control_system_objects_folder, file_hash).as_str() );
                     folder_structure.insert(entity, serde_json::Value::String(file_hash));
                 }
 
@@ -191,7 +191,26 @@ pub fn traverse(current_path: PathBuf, details: &controller::ConfigDetails) -> s
             if new_path.is_file() {
                 // You would typically hash the file content here and add it to the JSON structure
                 let file_hash = create_blob_file_and_save(&*new_path.display().to_string(), details);
-                folder_structure.insert(entity, serde_json::Value::String(file_hash));
+
+                // let file_hashes = vec![
+                //     serde_json::Value::String(file_hash.clone()),
+                //     serde_json::Value::String(file_hash.clone())
+                // ];
+
+                let array_with_objects = vec![
+                    serde_json::Value::Object({
+                        let mut map = serde_json::Map::new();
+                        map.insert("folder_hash".to_string(), serde_json::Value::String(file_hash.clone()));
+                        map
+                    }),
+                    serde_json::Value::Object({
+                        let mut map = serde_json::Map::new();
+                        map.insert("file_hash".to_string(), serde_json::Value::String(file_hash.clone()));
+                        map
+                    }),
+                ];
+                folder_structure.insert(entity, serde_json::Value::Array(array_with_objects));
+              //  folder_structure.insert(entity, serde_json::Value::String(file_hash));
             } else if new_path.is_dir() {
                 // If the entity is a folder, recursively traverse and update the folder structure
                 let nested_folder_structure = traverse(new_path, details);
